@@ -127,10 +127,14 @@ async function fetchExternalOffers(
   const offers = await withRetry(() => searchOffers(query, stores), retryAttempts);
 
   if (useCache) {
-    searchCache.set(key, {
-      expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
-      data: offers,
-    });
+    if (offers.length > 0) {
+      searchCache.set(key, {
+        expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
+        data: offers,
+      });
+    } else {
+      searchCache.delete(key);
+    }
   }
 
   return offers;

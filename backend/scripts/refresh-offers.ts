@@ -13,7 +13,7 @@ async function main() {
   const apiHealthy = await healthCheck();
   if (!apiHealthy) {
     console.warn(
-      "Supermarkets API is not reachable. The script will continue and may persist 0 offers.",
+      "DiscountHunter API is not reachable. The script will continue and may persist 0 offers.",
     );
   }
 
