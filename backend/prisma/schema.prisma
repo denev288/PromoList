@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ListItemType {
+  generic
+  preferred
+}
+
+enum StoreCode {
+  lidl
+  kaufland
+  billa
+}
+
+model ListItem {
+  id             String      @id @default(cuid())
+  name           String
+  type           ListItemType
+  preferredQuery String?
+  favorite       Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  offerMatches OfferMatch[]
+
+  @@index([favorite, createdAt])
+}
+
+model Store {
+  id    String    @id @default(cuid())
+  code  StoreCode @unique
+  name  String
+  offers Offer[]
+}
+
+model Offer {
+  id              String      @id @default(cuid())
+  fingerprint     String      @unique
+  storeId         String
+  titleRaw        String
+  normalizedTitle String
+  priceValue      Decimal     @db.Decimal(10, 2)
+  priceUnit       String
+  promo           Boolean     @default(false)
+  validFrom       DateTime?
+  validTo         DateTime?
+  sourceUrl       String?
+  createdAt       DateTime    @default(now())
+
+  store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  offerMatches OfferMatch[]
+
+  @@index([storeId])
+  @@index([normalizedTitle])
+  @@index([priceValue])
+}
+
+model OfferMatch {
+  id         String   @id @default(cuid())
+  listItemId String
+  offerId    String
+  score      Float
+  reason     String
+  createdAt  DateTime @default(now())
+
+  listItem ListItem @relation(fields: [listItemId], references: [id], onDelete: Cascade)
+  offer    Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([listItemId, offerId])
+  @@index([listItemId, score])
+}
