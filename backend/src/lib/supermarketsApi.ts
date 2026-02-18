@@ -1,4 +1,4 @@
-import { normalize } from "./text";
+import { normalize, tokenize } from "./text";
 import { isStore, type Store } from "./store";
 
 export type { Store };
@@ -43,10 +43,25 @@ interface SearchRequest {
 const REQUEST_TIMEOUT_MS = 8_000;
 const OPEN_API_DOC_PATHS = ["/v3/api-docs", "/api-docs"];
 const HEALTH_PATHS = ["/actuator/health", "/health", "/swagger-ui.html", "/v3/api-docs"];
+const PRODUCTS_ENDPOINT_PATH = "/products";
 const QUERY_PARAM_CANDIDATES = ["query", "q", "search", "keyword", "term"];
 const STORES_PARAM_CANDIDATES = ["stores", "storeCodes", "store", "chains", "markets"];
 
 let cachedSearchRequest: SearchRequest | null | undefined;
+
+interface ProductPayload {
+  name?: string;
+  quantity?: string;
+  price?: number;
+  oldPrice?: number | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
+}
+
+interface ProductStorePayload {
+  supermarket?: string;
+  products?: ProductPayload[];
+}
 
 function getBaseUrl(): URL | null {
   const raw = process.env.SUPERMARKETS_API_BASE_URL?.trim();
@@ -366,6 +381,102 @@ function mapExternalOffer(payload: unknown, requestedStores: Store[]): ExternalO
   };
 }
 
+function dedupeOffers(offers: ExternalOffer[]): ExternalOffer[] {
+  const deduped = new Map<string, ExternalOffer>();
+
+  for (const offer of offers) {
+    const key = `${offer.storeCode}::${offer.normalizedTitle}::${offer.priceValue.toFixed(2)}`;
+    deduped.set(key, offer);
+  }
+
+  return Array.from(deduped.values());
+}
+
+function matchesQuery(productName: string, normalizedQuery: string): boolean {
+  const normalizedTitle = normalize(productName);
+  if (!normalizedTitle) {
+    return false;
+  }
+
+  if (normalizedTitle.includes(normalizedQuery)) {
+    return true;
+  }
+
+  const queryTokens = tokenize(normalizedQuery);
+  const titleTokens = new Set(tokenize(normalizedTitle));
+
+  return queryTokens.some((token) => titleTokens.has(token));
+}
+
+function mapProductsEndpointPayload(
+  payload: unknown,
+  requestedStores: Store[],
+  normalizedQuery: string,
+): ExternalOffer[] {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  const offers: ExternalOffer[] = [];
+
+  for (const storeRow of payload as ProductStorePayload[]) {
+    const storeCode = parseStoreCode(storeRow.supermarket);
+    if (!storeCode || !requestedStores.includes(storeCode)) {
+      continue;
+    }
+
+    for (const product of storeRow.products ?? []) {
+      const titleRaw = asString(product.name);
+      const priceValue = asNumber(product.price);
+
+      if (!titleRaw || priceValue === null) {
+        continue;
+      }
+
+      if (!matchesQuery(titleRaw, normalizedQuery)) {
+        continue;
+      }
+
+      const oldPriceValue = asNumber(product.oldPrice ?? null);
+
+      offers.push({
+        storeCode,
+        titleRaw,
+        normalizedTitle: normalize(titleRaw),
+        priceValue,
+        priceUnit: asString(product.quantity) ?? "lv",
+        promo: oldPriceValue !== null ? oldPriceValue > priceValue : true,
+        validFrom: asString(product.validFrom),
+        validTo: asString(product.validUntil),
+        sourceUrl: null,
+      });
+    }
+  }
+
+  return offers;
+}
+
+async function fetchFromProductsEndpoint(
+  baseUrl: URL,
+  normalizedQuery: string,
+  requestedStores: Store[],
+  offersOnly: boolean,
+): Promise<ExternalOffer[]> {
+  if (requestedStores.length === 0) {
+    return [];
+  }
+
+  const url = new URL(PRODUCTS_ENDPOINT_PATH, baseUrl);
+  url.searchParams.set("offers", offersOnly ? "true" : "false");
+
+  for (const store of requestedStores) {
+    url.searchParams.append("supermarket", store);
+  }
+
+  const payload = await fetchJSON<unknown>(url);
+  return mapProductsEndpointPayload(payload, requestedStores, normalizedQuery);
+}
+
 export async function searchOffers(query: string, stores: Store[]): Promise<ExternalOffer[]> {
   const normalizedQuery = query.trim();
   const baseUrl = getBaseUrl();
@@ -378,28 +489,50 @@ export async function searchOffers(query: string, stores: Store[]): Promise<Exte
 
   try {
     const request = await getSearchRequest(baseUrl);
+    const collected: ExternalOffer[] = [];
 
-    if (!request) {
-      // TODO: map the exact search endpoint from swagger-ui and lock the adapter request shape.
-      return [];
-    }
+    if (request) {
+      const payload = await executeSearch(baseUrl, request, normalizedQuery, requestedStores);
+      const collection = extractOfferCollection(payload);
 
-    const payload = await executeSearch(baseUrl, request, normalizedQuery, requestedStores);
-    const collection = extractOfferCollection(payload);
+      for (const item of collection) {
+        const offer = mapExternalOffer(item, requestedStores);
+        if (!offer) {
+          continue;
+        }
 
-    const deduped = new Map<string, ExternalOffer>();
-
-    for (const item of collection) {
-      const offer = mapExternalOffer(item, requestedStores);
-      if (!offer) {
-        continue;
+        collected.push(offer);
       }
-
-      const key = `${offer.storeCode}::${offer.normalizedTitle}::${offer.priceValue.toFixed(2)}`;
-      deduped.set(key, offer);
     }
 
-    return Array.from(deduped.values());
+    // Swagger-verified strategy for sofia-supermarkets-api:
+    // 1) try promo-only offers first
+    // 2) fallback to all offers only for stores that returned no promo results
+    // TODO: lock this mapping fully once API contract is frozen in upstream project.
+    const promoOffers = await fetchFromProductsEndpoint(
+      baseUrl,
+      normalizedQuery,
+      requestedStores,
+      true,
+    );
+    collected.push(...promoOffers);
+
+    const storesWithPromoMatches = new Set(promoOffers.map((offer) => offer.storeCode));
+    const storesWithoutPromoMatches = requestedStores.filter(
+      (store) => !storesWithPromoMatches.has(store),
+    );
+
+    if (storesWithoutPromoMatches.length > 0) {
+      const fallbackOffers = await fetchFromProductsEndpoint(
+        baseUrl,
+        normalizedQuery,
+        storesWithoutPromoMatches,
+        false,
+      );
+      collected.push(...fallbackOffers);
+    }
+
+    return dedupeOffers(collected);
   } catch {
     return [];
   }

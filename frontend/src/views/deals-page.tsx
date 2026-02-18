@@ -77,7 +77,8 @@ export default function DealsPage() {
     [storeFilter],
   );
 
-  const hasNoDeals = deals.length > 0 && deals.every((entry) => entry.offers.length === 0);
+  const hasNoDeals =
+    deals.length > 0 && deals.every((entry) => entry.offers.length === 0);
 
   async function loadDeals() {
     if (selectedStores.length === 0) {
@@ -99,17 +100,28 @@ export default function DealsPage() {
         cache: "no-store",
       });
 
-      const payload = (await response.json().catch(() => null)) as DealsResponse | { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as
+        | DealsResponse
+        | { error?: string }
+        | null;
 
       if (!response.ok || !payload || !("items" in payload)) {
-        const message = payload && "error" in payload ? payload.error : "Failed to load deals";
+        const message =
+          payload && "error" in payload
+            ? payload.error
+            : "Failed to load deals";
         throw new Error(message ?? "Failed to load deals");
       }
+      console.log("[Deals API payload]", payload);
 
       setDeals(payload.items);
       setGeneratedAt(payload.generatedAt);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load deals");
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load deals",
+      );
     } finally {
       setLoading(false);
     }
@@ -122,7 +134,8 @@ export default function DealsPage() {
           <div>
             <h2 className="text-lg font-bold">Deals</h2>
             <p className="text-sm text-ink-muted">
-              Generic items show top 5 cheapest offers. Preferred items show closest matches first.
+              Generic items show top 5 cheapest offers. Preferred items show
+              closest matches first.
             </p>
           </div>
 
@@ -138,10 +151,15 @@ export default function DealsPage() {
 
         <div className="mt-4 grid gap-4 md:grid-cols-[1fr_200px]">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Stores</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Stores
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {STORE_ORDER.map((store) => (
-                <label key={store} className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 text-sm">
+                <label
+                  key={store}
+                  className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 text-sm"
+                >
                   <input
                     type="checkbox"
                     checked={storeFilter[store]}
@@ -159,7 +177,9 @@ export default function DealsPage() {
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Sort</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Sort
+            </p>
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
@@ -179,7 +199,9 @@ export default function DealsPage() {
       </article>
 
       {error ? (
-        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </p>
       ) : null}
 
       {hasNoDeals ? (
@@ -190,7 +212,10 @@ export default function DealsPage() {
 
       <div className="space-y-4">
         {deals.map((entry) => (
-          <article key={entry.item.id} className="rounded-3xl border border-line bg-surface p-5 shadow-sm">
+          <article
+            key={entry.item.id}
+            className="rounded-3xl border border-line bg-surface p-5 shadow-sm"
+          >
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-base font-bold">
                 {entry.item.favorite ? "[fav] " : ""}
@@ -198,7 +223,9 @@ export default function DealsPage() {
               </h3>
               <p className="text-xs uppercase tracking-wide text-ink-muted">
                 {entry.item.type}
-                {entry.item.preferredQuery ? ` | ${entry.item.preferredQuery}` : ""}
+                {entry.item.preferredQuery
+                  ? ` | ${entry.item.preferredQuery}`
+                  : ""}
                 {entry.fetchedOnDemand ? " | fetched on-demand" : ""}
               </p>
             </div>
@@ -210,7 +237,10 @@ export default function DealsPage() {
             ) : (
               <ul className="mt-3 space-y-2">
                 {entry.offers.map((offer) => (
-                  <li key={`${entry.item.id}-${offer.id}`} className="rounded-2xl border border-line bg-white px-4 py-3">
+                  <li
+                    key={`${entry.item.id}-${offer.id}`}
+                    className="rounded-2xl border border-line bg-white px-4 py-3"
+                  >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-sm font-semibold">{offer.title}</p>
@@ -225,13 +255,18 @@ export default function DealsPage() {
                         <p className="text-base font-bold text-accent">
                           {formatMoney(offer.priceValue, offer.priceUnit)}
                         </p>
-                        <p className="text-xs text-ink-muted">score: {offer.score.toFixed(2)}</p>
+                        <p className="text-xs text-ink-muted">
+                          score: {offer.score.toFixed(2)}
+                        </p>
                       </div>
                     </div>
 
-                    <p className="mt-2 text-xs text-ink-muted">reason: {offer.reason}</p>
+                    <p className="mt-2 text-xs text-ink-muted">
+                      reason: {offer.reason}
+                    </p>
                     <p className="mt-1 text-xs text-ink-muted">
-                      valid: {formatDate(offer.validFrom)} - {formatDate(offer.validTo)}
+                      valid: {formatDate(offer.validFrom)} -{" "}
+                      {formatDate(offer.validTo)}
                     </p>
                   </li>
                 ))}
