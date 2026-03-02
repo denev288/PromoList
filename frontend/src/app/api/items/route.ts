@@ -1,4 +1,3 @@
-import type { ListItemType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
   const item = await prisma.listItem.create({
     data: {
       name: parsed.data.name.trim(),
-      type: parsed.data.type as ListItemType,
+      type: parsed.data.type,
       preferredQuery: preferredQuery && preferredQuery.length > 0 ? preferredQuery : null,
     },
   });

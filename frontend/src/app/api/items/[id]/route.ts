@@ -1,4 +1,4 @@
-import { Prisma, type ListItemType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -68,7 +68,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (parsed.data.type !== undefined) {
-    data.type = parsed.data.type as ListItemType;
+    data.type = parsed.data.type;
   }
 
   if (parsed.data.toggleFavorite === true) {

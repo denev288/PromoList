@@ -1,10 +1,10 @@
-import type { ListItemType } from "@prisma/client";
-
 import { tokenize } from "./text";
+
+export type ItemType = "generic" | "preferred";
 
 export interface MatchableItem {
   name: string;
-  type: ListItemType | "generic" | "preferred";
+  type: ItemType;
   preferredQuery: string | null;
 }
 
