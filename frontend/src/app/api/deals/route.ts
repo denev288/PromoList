@@ -29,6 +29,10 @@ type DealOffer = {
   alternative: boolean;
 };
 
+const SOFIA_DATE_KEY_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Sofia",
+});
+
 function parseSortMode(raw: string | null): SortMode {
   return raw === "score" ? "score" : "price";
 }
@@ -82,6 +86,37 @@ function mapOffers(matches: MatchRows): DealOffer[] {
   }));
 }
 
+function toSofiaDateKey(value: Date): string {
+  return SOFIA_DATE_KEY_FORMATTER.format(value);
+}
+
+function parseDateKey(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return toSofiaDateKey(parsed);
+}
+
+function isOfferActive(offer: DealOffer, todayKey: string): boolean {
+  const validFromKey = parseDateKey(offer.validFrom);
+  const validToKey = parseDateKey(offer.validTo);
+
+  if (validFromKey && validFromKey > todayKey) {
+    return false;
+  }
+  if (validToKey && validToKey < todayKey) {
+    return false;
+  }
+
+  return true;
+}
+
 function sortOffersForItem(type: "generic" | "preferred", offers: DealOffer[], sort: SortMode): DealOffer[] {
   if (type === "generic") {
     return offers.slice().sort(byPrice).slice(0, 5);
@@ -105,6 +140,8 @@ export async function GET(request: Request) {
 
   const selectedStores = parseStoresParam(url.searchParams.get("stores")) as unknown as PrismaStoreCode[];
   const sortMode = parseSortMode(url.searchParams.get("sort"));
+  const includeExpired = url.searchParams.get("includeExpired") === "1";
+  const todayKey = toSofiaDateKey(new Date());
 
   const items = await prisma.listItem.findMany({
     orderBy: [{ favorite: "desc" }, { createdAt: "asc" }],
@@ -137,7 +174,11 @@ export async function GET(request: Request) {
       matches = await loadMatchesForItem(item.id, selectedStores);
     }
 
-    const offers = sortOffersForItem(item.type, mapOffers(matches), sortMode);
+    const allOffers = mapOffers(matches);
+    const activeOffers = includeExpired
+      ? allOffers
+      : allOffers.filter((offer) => isOfferActive(offer, todayKey));
+    const offers = sortOffersForItem(item.type, activeOffers, sortMode);
 
     result.push({
       item: {

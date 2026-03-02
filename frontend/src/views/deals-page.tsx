@@ -206,7 +206,7 @@ export default function DealsPage() {
 
       {hasNoDeals ? (
         <p className="rounded-2xl border border-dashed border-line bg-surface-2 px-4 py-4 text-sm text-ink-muted">
-          No deals yet - run <code>npm run refresh:offers</code>.
+          No active deals yet - run <code>npm run refresh:offers</code> or check source data freshness.
         </p>
       ) : null}
 

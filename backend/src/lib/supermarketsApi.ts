@@ -274,10 +274,13 @@ async function searchStoreOffers(
   store: Store,
 ): Promise<ExternalOffer[]> {
   const offers: ExternalOffer[] = [];
+  const nowIso = new Date().toISOString();
 
   let nextUrl: URL | null = new URL(productsPath, baseUrl);
   nextUrl.searchParams.set("search", apiQuery);
   nextUrl.searchParams.set("store", mapStoreToApiFilter(store));
+  // DiscountHunter supports date filters; this keeps expired promos out at source.
+  nextUrl.searchParams.set("promotion_expire_gte", nowIso);
   nextUrl.searchParams.set("page", "1");
 
   let pageGuard = 0;
