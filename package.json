@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev frontend",
+    "dev": "RAYON_NUM_THREADS=4 next dev frontend --webpack",
+    "dev:turbo": "RAYON_NUM_THREADS=4 next dev frontend",
     "build": "npm run prisma:generate && next build frontend",
     "start": "next start frontend",
     "lint": "eslint frontend backend",
