@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "next dev frontend",
     "build": "npm run prisma:generate && next build frontend",
-    "build:vercel": "npm run prisma:generate && npx prisma migrate deploy && npx prisma db seed && next build frontend",
     "start": "next start frontend",
     "lint": "eslint frontend backend",
     "db:up": "docker compose up -d",
